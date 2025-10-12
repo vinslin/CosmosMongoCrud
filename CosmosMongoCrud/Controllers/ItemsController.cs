@@ -2,6 +2,8 @@
 using CosmosMongoCrud.Repository;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using System.Text;
+using System.Text.Json;
 
 namespace CosmosMongoCrud.Controllers
 {
@@ -35,10 +37,22 @@ namespace CosmosMongoCrud.Controllers
         [HttpPost]
         public async Task<IActionResult> Create(Item item)
         {
-            await _itemRepository.CreateAsync(item);
-            return Ok();
-        }
+            using var httpClient = new HttpClient();
+            var functionUrl = "http://localhost:7024/api/Function1"; // Use local or deployed URL
 
+            var content = new StringContent(JsonSerializer.Serialize(item), Encoding.UTF8, "application/json");
+            var response = await httpClient.PostAsync(functionUrl, content);
+
+            if (!response.IsSuccessStatusCode)
+                return StatusCode((int)response.StatusCode, "Azure Function call failed.");
+
+            var modifiedItemJson = await response.Content.ReadAsStringAsync();
+            var modifiedItem = JsonSerializer.Deserialize<Item>(modifiedItemJson);
+
+            await _itemRepository.CreateAsync(modifiedItem);
+
+            return Ok(modifiedItem);
+        }
         [HttpPut("{id}")]
         public async Task<IActionResult> Update(string id,Item item)
         {
